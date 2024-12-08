@@ -1,0 +1,8 @@
+README : Doc
+README =
+  {{
+  # Advent of Code 2024
+  
+    My attempt at solving [Advent of Code](https://adventofcode.com/) with [Unison](https://unison-lang.org)
+    Based on the [template project](https://share.unison-lang.org/@unison/advent-of-code).    
+  }}
