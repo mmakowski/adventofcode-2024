@@ -1,0 +1,79 @@
+day02.sampleInput = """
+7 6 4 2 1
+1 2 7 8 9
+9 7 6 2 1
+1 3 2 4 5
+8 6 4 4 1
+1 3 6 7 9
+"""
+
+day02.parse : Text ->{Exception} [[Nat]]
+day02.parse input =
+  use List map
+  parseLine line = line |> splitOn whitespace |> map fromTextOrFail
+  map parseLine (lines input)
+
+-- part 1
+
+day02.part1 : '{IO, Exception} ()
+day02.part1 = do
+  submitSolution (Day 2) (Part 1) day02.part1.solve
+
+day02.part1.solve input = 
+  input
+    |> day02.parse
+    |> List.count day02.part1.isSafe
+    |> Nat.toText
+
+test> day02.part1.solve.tests.example = test.verify do
+  ensureEqual (day02.part1.solve day02.sampleInput) "2"
+
+day02.part1.isSafe levels =
+  intLevels = List.map Nat.toInt levels
+  diffs = List.zipWith (Int.-) (List.dropLast intLevels) (List.drop 1 intLevels)
+  isMonotonic = or (List.all (n -> n > +0) diffs) (List.all (n -> n < +0) diffs)
+  isSlow = List.all (n -> Int.abs(n) <= 3) diffs
+  and isMonotonic isSlow
+
+test> day02.part1.isSafe.tests.increasingSlowlyIsSafe =
+  check (day02.part1.isSafe [1, 2, 4, 5, 8])
+
+test> day02.part1.isSafe.tests.decreasingSlowlyIsSafe =
+  check (day02.part1.isSafe [8, 5, 3, 2, 1])
+
+test> day02.part1.isSafe.tests.nonStrictlyIncreasingIsNotSafe = 
+  check (not (day02.part1.isSafe [1, 2, 2, 4, 5]))
+
+test> day02.part1.isSafe.tests.nonStrictlyDecreasingIsNotSafe = 
+  check (not (day02.part1.isSafe [5, 4, 2, 2, 1))
+
+test> day02.part1.isSafe.tests.oscillatingIsNotSafe = 
+  check (not (day02.part1.isSafe [1, 2, 1, 2, 1]))
+
+test> day02.part1.isSafe.tests.increasingQuicklyIsNotSafe =
+  check (not (day02.part1.isSafe [1, 2, 4, 5, 9]))
+
+test> day02.part1.isSafe.tests.decreasingQuicklylyIsNotSafe =
+  check (not (day02.part1.isSafe [9, 5, 3, 2, 1]))
+
+-- part 2
+
+use day02
+
+day02.part2 : '{IO, Exception} ()
+day02.part2 = do
+  submitSolution (Day 2) (Part 2) day02.part2.solve
+
+day02.part2.solve input = 
+  input
+    |> day02.parse
+    |> List.count day02.part2.isSafe
+    |> Nat.toText
+
+test> day02.part2.solve.tests.example = test.verify do
+  ensureEqual (day02.part2.solve day02.sampleInput) "4"
+
+day02.part2.isSafe levels =
+  use List any map deleteAt size
+  drop1Levels = do map (i -> deleteAt i levels) (Nat.range 0 (size levels))
+  or (day02.part1.isSafe levels) (List.any day02.part1.isSafe (drop1Levels ()))
