@@ -29,6 +29,10 @@ test> day03.part1.parse.tests.example = test.verify do
    actual = day03.part1.parse day03.part1.sampleInput
    ensureEqual actual expected
 
+day03.part1.parser.doc =
+  {{
+    Try to parse as {{ docLink (docEmbedTermLink do part1.Command.Mul) }}, if that fails skip a character and try again.
+  }}
 day03.part1.parser = Parse.some <| firstOf [part1.parser.mul, part1.parser.junk]
 
 day03.part1.parser.mul = do
