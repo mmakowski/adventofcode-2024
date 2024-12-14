@@ -1,0 +1,117 @@
+-- part 1
+
+day03.part1 : '{IO, Exception} ()
+day03.part1 = do
+  submitSolution (Day 3) (Part 1) day03.part1.solve
+
+day03.part1.solve input =
+  use day03.part1.Command
+  evalMul = cases
+    Mul n m -> n * m
+    junk    -> raiseGeneric "Junk should have been filtered out!" junk
+  muls = day03.part1.parse input
+  muls |> List.map evalMul |> Nat.sum |> Nat.toText
+
+day03.part1.sampleInput =
+  """xmul(2,4)%&mul[3,7]!@^do_not_mul(5,5)+mul(32,64]then(mul(11,8)mul(8,5))"""
+  
+test> day03.part1.solve.tests.example = test.verify do
+  ensureEqual (day03.part1.solve day03.part1.sampleInput) "161"
+
+structural type day03.part1.Command = Mul Nat Nat | Junk
+
+-- uses @dfreeman/yap 1.7.0
+day03.part1.parse input =
+  List.filter notJunk (Parse.run part1.parser input |> ParseResult.toBug)
+
+test> day03.part1.parse.tests.example = test.verify do
+   expected = [Mul 2 4, Mul 5 5, Mul 11 8, Mul 8 5]
+   actual = day03.part1.parse day03.part1.sampleInput
+   ensureEqual actual expected
+
+day03.part1.parser = Parse.some <| firstOf [part1.parser.mul, part1.parser.junk]
+
+day03.part1.parser.mul = do
+  use Parse nat
+  text! "mul("
+  n = nat()
+  text! ","
+  m = nat()
+  text! ")"
+  part1.Command.Mul n m
+
+day03.part1.parser.junk = do
+  discard! <| pattern "<junk>" anyChar
+  part1.Command.Junk
+
+day03.part1.notJunk = cases
+  part1.Command.Junk -> false
+  _    -> true
+
+
+-- part 2
+
+day03.part2 : '{IO, Exception} ()
+day03.part2 = do
+  submitSolution (Day 3) (Part 2) day03.part2.solve
+
+day03.part2.solve input =
+  cmds = day03.part2.parse input
+  day03.part2.eval cmds
+
+day03.part2.sampleInput =
+  """xmul(2,4)&mul[3,7]!^don't()_mul(5,5)+mul(32,64](mul(11,8)undo()?mul(8,5))"""
+
+test> day03.part2.solve.tests.example = test.verify do
+  ensureEqual (day03.part2.solve day03.part2.sampleInput) "48"
+
+structural type day03.part2.Command = Mul Nat Nat | Dont | Do | Junk
+
+type day03.part2.EvalState = { sum : Nat, enabled : Boolean }
+
+day03.part2.eval cmds =
+  use day03.part2.Command
+  use day03.part2.EvalState
+  initialState = EvalState 0 true
+  step state = cases
+    Mul n m | EvalState.enabled state -> EvalState.sum.modify (s -> s + n * m) state
+    Do -> EvalState.enabled.modify (_ -> true) state
+    Dont -> EvalState.enabled.modify (_ -> false) state
+    _ -> state
+  finalState = List.foldLeft step initialState cmds
+  EvalState.sum finalState |> Nat.toText
+
+day03.part2.parse input =
+  List.filter notJunk (Parse.run part2.parser input |> ParseResult.toBug)
+
+test> day03.part2.parse.tests.example = test.verify do
+   expected = [Mul 2 4, Dont, Mul 5 5, Mul 11 8, Do, Mul 8 5]
+   actual = day03.part2.parse day03.part2.sampleInput
+   ensureEqual actual expected
+
+day03.part2.parser = Parse.some <| firstOf [part2.parser.mul, do_, dont, part2.parser.junk]
+
+day03.part2.parser.mul = do
+  use Parse nat
+  text! "mul("
+  n = nat()
+  text! ","
+  m = nat()
+  text! ")"
+  part2.Command.Mul n m
+
+day03.part2.parser.do_ = do
+  text! "do()"
+  Do
+
+day03.part2.parser.dont = do
+  text! "don't()"
+  Dont
+
+day03.part2.parser.junk = do
+  discard! <| pattern "<junk>" anyChar
+  part2.Command.Junk
+
+day03.part2.notJunk = cases
+  part2.Command.Junk -> false
+  _    -> true
