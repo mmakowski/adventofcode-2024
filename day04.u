@@ -1,0 +1,128 @@
+-- part 1
+
+day04.part1 : '{IO, Exception} ()
+day04.part1 = do
+  submitSolution (Day 4) (Part 1) day04.part1.solve
+
+day04.part1.solve input =
+  puzzle = day04.part1.parse input
+  toFailure : Error -> {g} Failure
+  toFailure err = Failure (typeLink Error) "error" (Any err)
+  toException : '{g, Throw Error} a -> {g, Exception} a
+  toException = Throw.toException toFailure
+  '(countWords "XMAS" puzzle |> Nat.toText) |> toException
+
+day04.part1.sampleInput = """MMMSXXMASM
+MSAMXMSMSA
+AMXSXMAAMM
+MSAMASMSMX
+XMASAMXAMM
+XXAMMXXAMA
+SMSMSASXSS
+SAXAMASAAA
+MAMMMXMMMM
+MXMXAXMASX"""
+
+test> day04.part1.solve.tests.example = test.verify do
+  actual = day04.part1.solve day04.part1.sampleInput
+  ensureEqual actual "18"
+
+-- model
+
+type day04.part1.Coords = { x: Nat, y: Nat }
+
+type day04.part1.Puzzle = {
+  board: [Text],
+  width: Nat,
+  height: Nat
+}
+
+type day04.part1.Error
+  = InvalidCoords Coords
+  | InvalidDirection Coords Direction
+  | EmptyWord
+  | EmptyInput
+
+type day04.part1.Direction = {x: Int, y: Int}
+
+day04.part1.Puzzle.at coords puzzle =
+  orThrow = Optional.toThrow (InvalidCoords coords)
+  row = List.at (y coords) (board puzzle) |> orThrow 
+  Text.charAt (x coords) row |> orThrow
+
+day04.part1.countWords word puzzle =
+  prog = do
+    x = Each.range 0 (width puzzle)
+    y = Each.range 0 (height puzzle)
+    dirX = each [-1, +0, +1]
+    dirY = each [-1, +0, +1]
+    guard <| or (dirX != +0) (dirY != +0) 
+    guard <| isValidDir (width puzzle) (Text.size word) x dirX
+    guard <| isValidDir (height puzzle) (Text.size word) y dirY
+    if foundWord word puzzle (Coords x y) (Direction dirX dirY) then 1 else Each.fail ()
+  Each.toList prog |> List.size
+
+day04.part1.countWords.tests.samplePuzzle : Puzzle
+day04.part1.countWords.tests.samplePuzzle = day04.part1.parse (
+"""ABX
+BAX
+XXB""")
+
+test> day04.part1.countWords.tests.ab = test.verify do
+  actual = (do countWords "AB" countWords.tests.samplePuzzle) |> Throw.toEither
+  ensureEqual actual (Right 5)
+
+day04.part1.isValidDir puzzleDim wordLength origin dir =
+  end = (Nat.toInt origin) + ((Nat.toInt wordLength) - +1) * dir
+  and (end >= +0) (end < Nat.toInt puzzleDim) 
+
+test> day04.part1.isValidDir.tests.validNeg = check (isValidDir 5 2 1 -1)
+test> day04.part1.isValidDir.tests.invalidNeg = check (not (isValidDir 5 2 0 -1))
+test> day04.part1.isValidDir.tests.validZero = check (isValidDir 5 2 0 +0)
+test> day04.part1.isValidDir.tests.validPos = check (isValidDir 5 2 3 +1)
+test> day04.part1.isValidDir.tests.invalidPos = check (not (isValidDir 5 2 4 +1))
+
+day04.part1.foundWord word puzzle coords dir =
+  if word == "" then true
+  else 
+    if Puzzle.at coords puzzle == Optional.toThrow EmptyWord (charAt 0 word) then
+      foundWord (drop 1 word) puzzle (move coords dir) dir
+    else false
+
+day04.part1.move coords dir =
+  step modify = cases
+    -1 -> modify Nat.decrement
+    +0 -> id
+    +1 -> modify Nat.increment
+    _ -> throw <| InvalidDirection coords dir
+  coords |> step Coords.x.modify (Direction.x dir) |> step Coords.y.modify (Direction.y dir)
+
+day04.part1.move.tests.test start dir expectedEnd =
+  test.verify do ensureEqual (toEither (do move start dir)) (Right expectedEnd)
+test> day04.part1.move.tests.N = move.tests.test (Coords 0 1) (Direction +0 -1) (Coords 0 0)
+test> day04.part1.move.tests.NE = move.tests.test (Coords 0 1) (Direction +1 -1) (Coords 1 0)
+test> day04.part1.move.tests.E = move.tests.test (Coords 0 0) (Direction +1 +0) (Coords 1 0)
+test> day04.part1.move.tests.SE = move.tests.test (Coords 0 0) (Direction +1 +1) (Coords 1 1)
+test> day04.part1.move.tests.S = move.tests.test (Coords 1 0) (Direction +0 +1) (Coords 1 1)
+test> day04.part1.move.tests.SW = move.tests.test (Coords 1 0) (Direction -1 +1) (Coords 0 1)
+test> day04.part1.move.tests.W = move.tests.test (Coords 1 1) (Direction -1 +0) (Coords 0 1)
+test> day04.part1.move.tests.NW = move.tests.test (Coords 1 1) (Direction -1 -1) (Coords 0 0)
+
+Optional.toThrow e opt =
+  getOrElse' (do throw e) opt
+
+-- parsing
+
+day04.part1.parse input =
+  use Optional map getOrElse
+  board = Text.lines input
+  width = List.at 0 board |> map Text.size |> getOrElse 0
+  height = List.size board
+  Puzzle board width height
+
+test> day04.part1.parse.tests.case1 = test.verify do
+  sampleInput = """ABC
+DEF"""
+  actual = day04.part1.parse sampleInput
+  expected = Puzzle ["ABC", "DEF"] 3 2
+  ensureEqual actual expected
