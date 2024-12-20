@@ -1,18 +1,77 @@
--- part 1
+-- model
 
-day04.part1 : '{IO, Exception} ()
-day04.part1 = do
-  submitSolution (Day 4) (Part 1) day04.part1.solve
+type day04.Error
+  = InvalidCoords Coords
+  | InvalidDirection Coords Direction
+  | EmptyWord
+  | EmptyInput
+  | InvalidWord Text
 
-day04.part1.solve input =
-  puzzle = day04.part1.parse input
-  toFailure : Error -> {g} Failure
+Optional.toThrow e opt =
+  getOrElse' (do throw e) opt
+
+day04.Error.toException = 
   toFailure err = Failure (typeLink Error) "error" (Any err)
-  toException : '{g, Throw Error} a -> {g, Exception} a
-  toException = Throw.toException toFailure
-  '(countWords "XMAS" puzzle |> Nat.toText) |> toException
+  Throw.toException toFailure
 
-day04.part1.sampleInput = """MMMSXXMASM
+type day04.Coords = { x: Nat, y: Nat }
+
+type day04.Puzzle = {
+  board: [Text],
+  width: Nat,
+  height: Nat
+}
+
+day04.Puzzle.at coords puzzle =
+  orThrow = Optional.toThrow (InvalidCoords coords)
+  row = List.at (y coords) (board puzzle) |> orThrow 
+  Text.charAt (x coords) row |> orThrow
+
+type day04.Direction = {x: Int, y: Int}
+
+day04.move coords dir =
+  step modify = cases
+    -1 -> modify Nat.decrement
+    +0 -> id
+    +1 -> modify Nat.increment
+    _ -> throw <| InvalidDirection coords dir
+  coords |> step Coords.x.modify (Direction.x dir) |> step Coords.y.modify (Direction.y dir)
+
+day04.move.tests.test start dir expectedEnd =
+  test.verify do ensureEqual (toEither (do move start dir)) (Right expectedEnd)
+test> day04.move.tests.N = move.tests.test (Coords 0 1) (Direction +0 -1) (Coords 0 0)
+test> day04.move.tests.NE = move.tests.test (Coords 0 1) (Direction +1 -1) (Coords 1 0)
+test> day04.move.tests.E = move.tests.test (Coords 0 0) (Direction +1 +0) (Coords 1 0)
+test> day04.move.tests.SE = move.tests.test (Coords 0 0) (Direction +1 +1) (Coords 1 1)
+test> day04.move.tests.S = move.tests.test (Coords 1 0) (Direction +0 +1) (Coords 1 1)
+test> day04.move.tests.SW = move.tests.test (Coords 1 0) (Direction -1 +1) (Coords 0 1)
+test> day04.move.tests.W = move.tests.test (Coords 1 1) (Direction -1 +0) (Coords 0 1)
+test> day04.move.tests.NW = move.tests.test (Coords 1 1) (Direction -1 -1) (Coords 0 0)
+
+day04.foundWord word puzzle coords dir =
+  if word == "" then true
+  else 
+    if Puzzle.at coords puzzle == Optional.toThrow EmptyWord (charAt 0 word) then
+      foundWord (drop 1 word) puzzle (move coords dir) dir
+    else false
+
+-- parsing
+
+day04.parse input =
+  use Optional map getOrElse
+  board = Text.lines input
+  width = List.at 0 board |> map Text.size |> getOrElse 0
+  height = List.size board
+  Puzzle board width height
+
+test> day04.parse.tests.case1 = test.verify do
+  sampleInput = """ABC
+DEF"""
+  actual = day04.parse sampleInput
+  expected = Puzzle ["ABC", "DEF"] 3 2
+  ensureEqual actual expected
+
+day04.sampleInput = """MMMSXXMASM
 MSAMXMSMSA
 AMXSXMAAMM
 MSAMASMSMX
@@ -23,32 +82,20 @@ SAXAMASAAA
 MAMMMXMMMM
 MXMXAXMASX"""
 
+
+-- part 1
+
+day04.part1 : '{IO, Exception} ()
+day04.part1 = do
+  submitSolution (Day 4) (Part 1) day04.part1.solve
+
+day04.part1.solve input =
+  puzzle = day04.parse input
+  '(countWords "XMAS" puzzle |> Nat.toText) |> day04.Error.toException
+
 test> day04.part1.solve.tests.example = test.verify do
-  actual = day04.part1.solve day04.part1.sampleInput
+  actual = day04.part1.solve day04.sampleInput
   ensureEqual actual "18"
-
--- model
-
-type day04.part1.Coords = { x: Nat, y: Nat }
-
-type day04.part1.Puzzle = {
-  board: [Text],
-  width: Nat,
-  height: Nat
-}
-
-type day04.part1.Error
-  = InvalidCoords Coords
-  | InvalidDirection Coords Direction
-  | EmptyWord
-  | EmptyInput
-
-type day04.part1.Direction = {x: Int, y: Int}
-
-day04.part1.Puzzle.at coords puzzle =
-  orThrow = Optional.toThrow (InvalidCoords coords)
-  row = List.at (y coords) (board puzzle) |> orThrow 
-  Text.charAt (x coords) row |> orThrow
 
 day04.part1.countWords word puzzle =
   prog = do
@@ -63,7 +110,7 @@ day04.part1.countWords word puzzle =
   Each.toList prog |> List.size
 
 day04.part1.countWords.tests.samplePuzzle : Puzzle
-day04.part1.countWords.tests.samplePuzzle = day04.part1.parse (
+day04.part1.countWords.tests.samplePuzzle = day04.parse (
 """ABX
 BAX
 XXB""")
@@ -82,47 +129,43 @@ test> day04.part1.isValidDir.tests.validZero = check (isValidDir 5 2 0 +0)
 test> day04.part1.isValidDir.tests.validPos = check (isValidDir 5 2 3 +1)
 test> day04.part1.isValidDir.tests.invalidPos = check (not (isValidDir 5 2 4 +1))
 
-day04.part1.foundWord word puzzle coords dir =
-  if word == "" then true
-  else 
-    if Puzzle.at coords puzzle == Optional.toThrow EmptyWord (charAt 0 word) then
-      foundWord (drop 1 word) puzzle (move coords dir) dir
-    else false
 
-day04.part1.move coords dir =
-  step modify = cases
-    -1 -> modify Nat.decrement
-    +0 -> id
-    +1 -> modify Nat.increment
-    _ -> throw <| InvalidDirection coords dir
-  coords |> step Coords.x.modify (Direction.x dir) |> step Coords.y.modify (Direction.y dir)
+-- part 2
 
-day04.part1.move.tests.test start dir expectedEnd =
-  test.verify do ensureEqual (toEither (do move start dir)) (Right expectedEnd)
-test> day04.part1.move.tests.N = move.tests.test (Coords 0 1) (Direction +0 -1) (Coords 0 0)
-test> day04.part1.move.tests.NE = move.tests.test (Coords 0 1) (Direction +1 -1) (Coords 1 0)
-test> day04.part1.move.tests.E = move.tests.test (Coords 0 0) (Direction +1 +0) (Coords 1 0)
-test> day04.part1.move.tests.SE = move.tests.test (Coords 0 0) (Direction +1 +1) (Coords 1 1)
-test> day04.part1.move.tests.S = move.tests.test (Coords 1 0) (Direction +0 +1) (Coords 1 1)
-test> day04.part1.move.tests.SW = move.tests.test (Coords 1 0) (Direction -1 +1) (Coords 0 1)
-test> day04.part1.move.tests.W = move.tests.test (Coords 1 1) (Direction -1 +0) (Coords 0 1)
-test> day04.part1.move.tests.NW = move.tests.test (Coords 1 1) (Direction -1 -1) (Coords 0 0)
+day04.part2 : '{IO, Exception} ()
+day04.part2 = do
+  submitSolution (Day 4) (Part 2) day04.part2.solve
 
-Optional.toThrow e opt =
-  getOrElse' (do throw e) opt
+day04.part2.solve input =
+  puzzle = day04.parse input
+  '(countCrossWords "MAS" puzzle |> Nat.toText) |> day04.Error.toException
 
--- parsing
+test> day04.part2.solve.tests.example = test.verify do
+  actual = day04.part2.solve day04.sampleInput
+  ensureEqual actual "9"
 
-day04.part1.parse input =
-  use Optional map getOrElse
-  board = Text.lines input
-  width = List.at 0 board |> map Text.size |> getOrElse 0
-  height = List.size board
-  Puzzle board width height
+day04.part2.countCrossWords word puzzle =
+  wordLength = Text.size word
+  offset = wordLength - 1
+  SE = Direction +1 +1
+  SW = Direction -1 +1
+  NE = Direction +1 -1
+  NW = Direction -1 -1
+  prog = do
+    x = Each.range 0 (width puzzle - offset)
+    y = Each.range 0 (height puzzle - offset)
+    if and (or (foundWord word puzzle (Coords x y) SE)
+               (foundWord word puzzle (Coords (x + offset) (y + offset)) NW))
+           (or (foundWord word puzzle (Coords (x + offset) y) SW)
+               (foundWord word puzzle (Coords x (y + offset)) NE))
+    then 1 
+    else Each.fail ()
+  Each.toList prog |> List.size
 
-test> day04.part1.parse.tests.case1 = test.verify do
-  sampleInput = """ABC
-DEF"""
-  actual = day04.part1.parse sampleInput
-  expected = Puzzle ["ABC", "DEF"] 3 2
-  ensureEqual actual expected
+day04.part2.countCrossWords.tests.testFound n input = test.verify do
+  actual = Throw.toEither do (day04.parse input |> countCrossWords "ABC")
+  ensureEqual actual (Right n)
+test> day04.part2.countCrossWords.tests.SExSW = testFound 1 "A.A\n.B.\nC.C"
+test> day04.part2.countCrossWords.tests.SExNE = testFound 1 "A.C\n.B.\nA.C"
+test> day04.part2.countCrossWords.tests.NWxSW = testFound 1 "C.A\n.B.\nC.A"
+test> day04.part2.countCrossWords.tests.NWxNE = testFound 1 "C.C\n.B.\nA.A"
